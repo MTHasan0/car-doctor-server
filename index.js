@@ -1,17 +1,23 @@
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
-// const jwt = require('jsonwebtoken');
 const jwt = require('jsonwebtoken')
 const app = express();
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
 
+
+
+
+
 //middleware
 app.use(cors({
-    origin: ['https://cars-doctor-57868.web.app', 'https://cars-doctor-57868.firebaseapp.com', 'http://localhost:5173'],
-    credentials: true,
+    origin: [
+        // 'http://localhost:5173',
+        'https://car-doctor-f8a5b.web.app', 'https://car-doctor-f8a5b.firebaseapp.com', 'http://localhost:5173'
+    ],
+    credentials: true
 }));
 app.use(express.json());
 app.use(cookieParser());
@@ -37,29 +43,26 @@ const client = new MongoClient(uri, {
 
 //middlewares
 
-const logger = async (req, res, next) => {
-    console.log('Called:', req.method, req.url);
+const logger = (req, res, next) =>{
+    console.log('log: info', req.method, req.url);
     next();
 }
 
-const verifyToken = async (req, res, next) => {
-    console.log('req',req);
-    const token = req?.cookies?.accessToken;
-    // console.log(req.cookies);
-    // console.log('Value of token:', token);
-    if (!token) {
-        return res.status(401).send({message: 'Access denied'});
+
+const verifyToken = (req, res, next) =>{
+    const token = req?.cookies?.token;
+    // console.log('token in the middleware', token);
+    // no token available 
+    if(!token){
+        return res.status(401).send({message: 'unauthorized access'})
     }
-    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-        if (err) {
-            console.log(err);
-            return res.status(401).send({ message: 'Access denied' })
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) =>{
+        if(err){
+            return res.status(401).send({message: 'unauthorized access'})
         }
-        console.log(('value in the token:', decoded));
         req.user = decoded;
         next();
     })
-
 }
 
 async function run() {
@@ -68,7 +71,8 @@ async function run() {
         console.log("Connected to database");
         // Perform database operations here
         const serviceCollection = client.db('carDoctor').collection('services');
-        const bookingCollection = client.db('carDoctor').collection('bookings')
+        const bookingCollection = client.db('carDoctor').collection('bookings');
+        const productsCollection = client.db('carDoctor').collection('products')
 
         //authentication related api (jwt)
         app.post('/jwt', logger, async (req, res) => {
@@ -80,7 +84,7 @@ async function run() {
             res
                 .cookie('token', token, {
                     httpOnly: true,
-                    secure: false,
+                    secure: true,
                     sameSite: 'none'
                 })
                 .send({ success: true });
@@ -101,12 +105,21 @@ async function run() {
             res.send(result);
         })
 
+
+
         app.get('/services/:id', async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) }
             const result = await serviceCollection.findOne(query);
             res.send(result);
 
+        })
+
+        //products related api
+        app.get('/products', async(req, res)=>{
+            const cursor = productsCollection.find();
+            const result = await cursor.toArray();
+            res.send(result);
         })
 
 
